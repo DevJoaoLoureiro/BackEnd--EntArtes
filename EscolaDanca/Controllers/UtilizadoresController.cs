@@ -55,6 +55,20 @@ public class UtilizadoresController : ControllerBase
         return Ok(new { user.Id, user.Nome, user.Username, user.Email, user.Perfil, user.Ativo });
     }
 
+
+    [HttpGet("professores")]
+    [Authorize] // ou Authorize(Roles="ADMIN,SUPER_ADMIN")
+    public async Task<IActionResult> ListarProfessores()
+    {
+        var profs = await _db.Utilizadores
+            .AsNoTracking()
+            .Where(u => u.Ativo && u.Perfil == "PROFESSOR")
+            .OrderBy(u => u.Nome)
+            .Select(u => new { u.Id, u.Nome })
+            .ToListAsync();
+
+        return Ok(profs);
+    }
     [HttpGet]
     [Authorize(Roles = "ADMIN,SUPER_ADMIN")]
     public async Task<IActionResult> Listar()

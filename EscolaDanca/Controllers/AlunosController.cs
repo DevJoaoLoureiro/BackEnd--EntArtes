@@ -39,6 +39,8 @@ public class AlunosController : ControllerBase
         return Ok(aluno);
     }
 
+   
+
     [HttpDelete("{id:int}")]
     [Authorize(Roles = "ADMIN,SUPER_ADMIN")]
     public async Task<IActionResult> Remover(int id)

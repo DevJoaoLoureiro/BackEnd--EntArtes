@@ -27,13 +27,6 @@ public class AuthController : ControllerBase
     }
 
 
-    [HttpPost("hash")]
-    public IActionResult Hash([FromBody] string password)
-    {
-        return Ok(_pw.Hash(password));
-    }
-
-
 
     [HttpPost("login")]
     public async Task<IActionResult> Login([FromBody] LoginRequest req)

@@ -1,4 +1,4 @@
-﻿namespace EscolaDanca.Api.DTOs;
+﻿namespace EscolaDanca.DTOs;
 
 public class LoginResponse
 {
