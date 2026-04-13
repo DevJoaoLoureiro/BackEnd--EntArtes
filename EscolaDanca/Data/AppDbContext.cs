@@ -13,9 +13,6 @@ public class AppDbContext : DbContext
     public DbSet<Responsavel> Responsaveis => Set<Responsavel>();
     public DbSet<AlunoResponsavel> AlunoResponsaveis => Set<AlunoResponsavel>();
 
-    public DbSet<Turma> Turmas => Set<Turma>();
-    public DbSet<TurmaAluno> TurmaAlunos => Set<TurmaAluno>();
-    public DbSet<TurmaProfessor> TurmaProfessores => Set<TurmaProfessor>();
 
     public DbSet<SessaoAula> SessoesAula => Set<SessaoAula>();
     public DbSet<Presenca> Presencas => Set<Presenca>();
@@ -30,5 +27,6 @@ public class AppDbContext : DbContext
     public DbSet<MarketplaceAnuncio> MarketplaceAnuncios => Set<MarketplaceAnuncio>();
     public DbSet<MarketplaceInteresse> MarketplaceInteresses => Set<MarketplaceInteresse>();
 
+    public DbSet<ConfirmacaoPresenca> ConfirmacaoPresenca => Set<ConfirmacaoPresenca>();
     public DbSet<Pagamento> Pagamentos => Set<Pagamento>();
 }
