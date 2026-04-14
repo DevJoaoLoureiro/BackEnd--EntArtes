@@ -11,7 +11,7 @@ public class Aluguer
     public DateOnly DataInicio { get; set; }
     public DateOnly DataFim { get; set; }
     public string Estado { get; set; } = "PEDIDO";
-    public DateTime CriadoEm { get; set; }
+     public DateTime CriadoEm { get; set; }
 
     public InventarioItem? Item { get; set; }
 }

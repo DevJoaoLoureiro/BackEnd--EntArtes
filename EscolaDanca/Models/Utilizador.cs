@@ -26,6 +26,5 @@ public class Utilizador
     [Column("ativo")]
     public bool Ativo { get; set; }
 
-    [Column("criado_em")]
-    public DateTime CriadoEm { get; set; }
+    [Column("criado_em")] public DateTime CriadoEm { get; set; }
 }

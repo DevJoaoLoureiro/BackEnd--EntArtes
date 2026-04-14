@@ -3,8 +3,8 @@ using System.ComponentModel.DataAnnotations.Schema;
 
 namespace EscolaDanca.Models;
 
-[Table("presencas")]
-public class Presenca
+[Table("sessao_alunos")]
+public class SessaoAluno
 {
     [Key]
     [Column("id")]
@@ -16,14 +16,11 @@ public class Presenca
     [Column("aluno_id")]
     public int AlunoId { get; set; }
 
-    [Column("marcado_por_utilizador_id")]
-    public int MarcadoPorUtilizadorId { get; set; }
+    [Column("adicionado_por_utilizador_id")]
+    public int AdicionadoPorUtilizadorId { get; set; }
 
-    [Column("marcado_em")]
-    public DateTime? MarcadoEm { get; set; }
-
-    [Column("presente")]
-    public bool Presente { get; set; }
+    [Column("adicionado_em")]
+    public DateTime AdicionadoEm { get; set; }
 
     [ForeignKey("SessaoAulaId")]
     public SessaoAula? Sessao { get; set; }
@@ -31,6 +28,6 @@ public class Presenca
     [ForeignKey("AlunoId")]
     public Aluno? Aluno { get; set; }
 
-    [ForeignKey("MarcadoPorUtilizadorId")]
-    public Utilizador? MarcadoPor { get; set; }
+    [ForeignKey("AdicionadoPorUtilizadorId")]
+    public Utilizador? AdicionadoPor { get; set; }
 }

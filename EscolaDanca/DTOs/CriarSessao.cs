@@ -1,8 +1,15 @@
 ﻿namespace EscolaDanca.DTOs;
+
 public class CreateSessao
 {
-    public string Titulo { get; set; }
-    public string Descricao { get; set; }
     public DateTime DataInicio { get; set; }
     public DateTime DataFim { get; set; }
+
+    public int? ProfessorUtilizadorId { get; set; }
+    public int? TipoAulaId { get; set; }
+    public int? EstudioId { get; set; }
+    public int? MaxAlunos { get; set; }
+    public int? TurmaId { get; set; }
+
+    public string? Sumario { get; set; }
 }

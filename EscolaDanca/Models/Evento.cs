@@ -34,8 +34,8 @@ public class Evento
 
     public Utilizador? CriadoPorUtilizador { get; set; }
 
-    [Column("criado_em")]
-    public DateTime CriadoEm { get; set; } = DateTime.UtcNow;
+
+    [Column("criado_em")] public DateTime CriadoEm { get; set; } = DateTime.UtcNow;
 
    
 }

@@ -41,7 +41,7 @@ public class UtilizadoresController : ControllerBase
             return BadRequest("Perfil é obrigatório.");
 
         req.Perfil = req.Perfil.Trim().ToUpper();
-        var perfilOk = new[] { "ADMIN", "SUPER_ADMIN", "PROFESSOR", "ENCARREGADO" }.Contains(req.Perfil);
+        var perfilOk = new[] { "ADMIN", "SUPER_ADMIN", "PROFESSOR", "ENCARREGADO", "ALUNO" }.Contains(req.Perfil);
         if (!perfilOk)
             return BadRequest("Perfil inválido.");
 
@@ -71,7 +71,7 @@ public class UtilizadoresController : ControllerBase
             Token = token,
             ExpiraEm = DateTime.UtcNow.AddHours(24),
             Usado = false,
-            CriadoEm = DateTime.UtcNow,
+            criado_em = DateTime.UtcNow,
             CriadoPorUtilizadorId = criadoPor
         };
 
@@ -84,14 +84,14 @@ public class UtilizadoresController : ControllerBase
         var assunto = "Convite para criar conta - Escola de Dança";
         var body = $@"Olá,
 
-Recebeu um convite para criar a sua conta na plataforma da Escola de Dança.
+            Recebeu um convite para criar a sua conta na plataforma da Escola de Dança.
 
-Clique no link abaixo para concluir o registo:
-{link}
+            Clique no link abaixo para concluir o registo:
+            {link}
 
-Este link expira em 24 horas.
+            Este link expira em 24 horas.
 
-Se não estava à espera deste email, ignore esta mensagem.";
+            Se não estava à espera deste email, ignore esta mensagem.";
 
         await _emailService.SendAsync(email, assunto, body);
 
@@ -129,26 +129,101 @@ Se não estava à espera deste email, ignore esta mensagem.";
     [Authorize(Roles = "ADMIN,SUPER_ADMIN")]
     public async Task<IActionResult> Remover(int id)
     {
-        var user = await _db.Utilizadores.FindAsync(id);
+        try
+        {
+            var user = await _db.Utilizadores.FindAsync(id);
 
-        if (user == null)
-            return NotFound("Utilizador não encontrado.");
+            if (user == null)
+                return NotFound("Utilizador não encontrado.");
 
-        //  proteção opcional: não apagar o próprio utilizador
-        var userIdClaim = User.FindFirst(System.Security.Claims.ClaimTypes.NameIdentifier)?.Value;
-        if (userIdClaim != null && int.Parse(userIdClaim) == id)
-            return BadRequest("Não pode eliminar o próprio utilizador.");
+            var userIdClaim = User.FindFirst(System.Security.Claims.ClaimTypes.NameIdentifier)?.Value;
+            if (userIdClaim != null && int.Parse(userIdClaim) == id)
+                return BadRequest("Não pode eliminar o próprio utilizador.");
 
-        _db.Utilizadores.Remove(user);
-        await _db.SaveChangesAsync();
+            var aluno = await _db.Alunos.FirstOrDefaultAsync(a => a.UtilizadorId == id);
+            if (aluno != null)
+            {
+                var ligacoesAluno = await _db.AlunoResponsaveis
+                    .Where(x => x.AlunoId == aluno.Id)
+                    .ToListAsync();
+                _db.AlunoResponsaveis.RemoveRange(ligacoesAluno);
 
-        return Ok(new { message = "Utilizador removido com sucesso." });
+                var presencasAluno = await _db.Presencas
+                    .Where(p => p.AlunoId == aluno.Id)
+                    .ToListAsync();
+                _db.Presencas.RemoveRange(presencasAluno);
+
+                var confirmacoesAluno = await _db.ConfirmacaoPresenca
+                    .Where(c => c.AlunoId == aluno.Id)
+                    .ToListAsync();
+                _db.ConfirmacaoPresenca.RemoveRange(confirmacoesAluno);
+
+                var sessoesAluno = await _db.SessaoAlunos
+                    .Where(sa => sa.AlunoId == aluno.Id)
+                    .ToListAsync();
+                _db.SessaoAlunos.RemoveRange(sessoesAluno);
+
+                _db.Alunos.Remove(aluno);
+            }
+
+            var responsavel = await _db.Responsaveis.FirstOrDefaultAsync(r => r.UtilizadorId == id);
+            if (responsavel != null)
+            {
+                var ligacoesResp = await _db.AlunoResponsaveis
+                    .Where(x => x.ResponsavelId == responsavel.Id)
+                    .ToListAsync();
+                _db.AlunoResponsaveis.RemoveRange(ligacoesResp);
+
+                _db.Responsaveis.Remove(responsavel);
+            }
+
+            var sessoesProfessor = await _db.SessoesAula
+                .Where(s => s.ProfessorUtilizadorId == id || s.CriadoPorUtilizadorId == id)
+                .ToListAsync();
+
+            foreach (var s in sessoesProfessor)
+            {
+                var presencas = await _db.Presencas
+                    .Where(p => p.SessaoAulaId == s.Id)
+                    .ToListAsync();
+                _db.Presencas.RemoveRange(presencas);
+
+                var confirmacoes = await _db.ConfirmacaoPresenca
+                    .Where(c => c.SessaoAulaId == s.Id)
+                    .ToListAsync();
+                _db.ConfirmacaoPresenca.RemoveRange(confirmacoes);
+
+                var sessaoAlunos = await _db.SessaoAlunos
+                    .Where(sa => sa.SessaoAulaId == s.Id)
+                    .ToListAsync();
+                _db.SessaoAlunos.RemoveRange(sessaoAlunos);
+            }
+
+            _db.SessoesAula.RemoveRange(sessoesProfessor);
+
+            var convites = await _db.ConvitesUtilizador
+                .Where(c => c.CriadoPorUtilizadorId == id)
+                .ToListAsync();
+            _db.ConvitesUtilizador.RemoveRange(convites);
+
+            _db.Utilizadores.Remove(user);
+
+            await _db.SaveChangesAsync();
+
+            return Ok(new { message = "Utilizador removido completamente." });
+        }
+        catch (Exception ex)
+        {
+            return StatusCode(500, ex.InnerException?.Message ?? ex.Message);
+        }
     }
+
 
     [HttpPost("registo-por-convite")]
     [AllowAnonymous]
     public async Task<IActionResult> RegistoPorConvite([FromBody] RegistoPorConviteRequest req)
     {
+        // 1. Validação de dados obrigatórios
         if (string.IsNullOrWhiteSpace(req.Token) ||
             string.IsNullOrWhiteSpace(req.Nome) ||
             string.IsNullOrWhiteSpace(req.Username) ||
@@ -157,32 +232,30 @@ Se não estava à espera deste email, ignore esta mensagem.";
             return BadRequest("Dados obrigatórios em falta.");
         }
 
+        // 2. Procurar e validar o convite
         var convite = await _db.ConvitesUtilizador
             .FirstOrDefaultAsync(c => c.Token == req.Token);
 
-        if (convite == null)
-            return BadRequest("Convite inválido.");
+        if (convite == null) return BadRequest("Convite inválido.");
+        if (convite.Usado) return BadRequest("Convite já utilizado.");
+        if (convite.ExpiraEm < DateTime.UtcNow) return BadRequest("Convite expirado.");
 
-        if (convite.Usado)
-            return BadRequest("Convite já utilizado.");
-
-        if (convite.ExpiraEm < DateTime.UtcNow)
-            return BadRequest("Convite expirado.");
-
+        // 3. Validações de existência (Username e Email)
         var username = req.Username.Trim();
-
-        var usernameExiste = await _db.Utilizadores
-            .AnyAsync(u => u.Username == username);
-
-        if (usernameExiste)
+        if (await _db.Utilizadores.AnyAsync(u => u.Username == username))
             return BadRequest("Username já existe.");
 
-        var emailExiste = await _db.Utilizadores
-            .AnyAsync(u => u.Email != null && u.Email.ToLower() == convite.Email.ToLower());
-
-        if (emailExiste)
+        if (await _db.Utilizadores.AnyAsync(u => u.Email != null && u.Email.ToLower() == convite.Email.ToLower()))
             return BadRequest("Já existe uma conta com este email.");
 
+        // 4. Validação específica para ENCARREGADO
+        if (convite.Perfil == "ENCARREGADO")
+        {
+            if (req.Educandos == null || !req.Educandos.Any(e => !string.IsNullOrWhiteSpace(e.Nome)))
+                return BadRequest("Sendo encarregado, tem de indicar o nome de pelo menos um educando.");
+        }
+
+        // 5. Instanciar o Utilizador (Sem salvar ainda!)
         var user = new Utilizador
         {
             Nome = req.Nome.Trim(),
@@ -193,15 +266,72 @@ Se não estava à espera deste email, ignore esta mensagem.";
             Ativo = true,
             CriadoEm = DateTime.UtcNow
         };
-
         _db.Utilizadores.Add(user);
 
+        // 6. Lógica por Perfil (ALUNO ou ENCARREGADO)
+        if (user.Perfil == "ALUNO")
+        {
+            var aluno = new Aluno
+            {
+                Nome = user.Nome,
+                Utilizador = user // Ligação por objeto
+            };
+            _db.Alunos.Add(aluno);
+        }
+        else if (user.Perfil == "ENCARREGADO")
+        {
+            var responsavel = new Responsavel
+            {
+                Nome = user.Nome,
+                Email = user.Email,
+                Utilizador = user, // Ligação por objeto
+                CriadoEm = DateTime.Now
+            };
+            _db.Responsaveis.Add(responsavel);
+
+            var educandosValidos = req.Educandos!
+                .Where(e => !string.IsNullOrWhiteSpace(e.Nome))
+                .ToList();
+
+            foreach (var edu in educandosValidos)
+            {
+                var alunoEdu = new Aluno
+                {
+                    Nome = edu.Nome.Trim(),
+                    DataNascimento = edu.DataNascimento.HasValue
+                        ? DateOnly.FromDateTime(edu.DataNascimento.Value)
+                        : null
+                };
+                _db.Alunos.Add(alunoEdu);
+
+                // Tabela de ligação
+                _db.AlunoResponsaveis.Add(new AlunoResponsavel
+                {
+                    Aluno = alunoEdu,
+                    Responsavel = responsavel
+                });
+            }
+        }
+
+        // 7. Marcar convite como usado
         convite.Usado = true;
 
-        await _db.SaveChangesAsync();
-
-        return Ok(new { message = "Conta criada com sucesso." });
+        // 8. Único Ponto de Gravação
+        // Se o erro "Invalid column name" persistir em qualquer tabela, nada será gravado aqui.
+        try
+        {
+            await _db.SaveChangesAsync();
+            return Ok(new { message = "Conta criada com sucesso." });
+        }
+        catch (Exception ex)
+        {
+            // Se der erro, o InnerException dirá qual a tabela/coluna exata
+            return StatusCode(500, $"Erro ao gravar na Base de Dados: {ex.InnerException?.Message ?? ex.Message}");
+        }
     }
+
+
+
 
     [HttpGet("professores")]
     [Authorize]

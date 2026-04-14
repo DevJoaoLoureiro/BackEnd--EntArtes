@@ -7,5 +7,5 @@ public class MarketplaceInteresse
     public int ResponsavelId { get; set; }
     public string Mensagem { get; set; } = "";
     public string Estado { get; set; } = "ENVIADO";
-    public DateTime CriadoEm { get; set; }
+  public DateTime CriadoEm { get; set; }
 }

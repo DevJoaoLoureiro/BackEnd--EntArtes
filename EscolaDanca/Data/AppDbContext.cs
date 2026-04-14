@@ -4,8 +4,18 @@ using Microsoft.EntityFrameworkCore;
 
 namespace EscolaDanca.Data;
 
+
+
 public class AppDbContext : DbContext
 {
+
+    protected override void OnConfiguring(DbContextOptionsBuilder optionsBuilder)
+    {
+        // Isto vai escrever o SQL real na janela "Output" (Saída) do Visual Studio
+        optionsBuilder.LogTo(Console.WriteLine);
+    }
+
+
     public AppDbContext(DbContextOptions<AppDbContext> options) : base(options) { }
 
     public DbSet<Utilizador> Utilizadores => Set<Utilizador>();
@@ -31,4 +41,11 @@ public class AppDbContext : DbContext
 
     public DbSet<ConviteUtilizador> ConvitesUtilizador => Set<ConviteUtilizador>();
     public DbSet<Pagamento> Pagamentos => Set<Pagamento>();
+    public DbSet<Estudio> Estudio => Set<Estudio>();
+    public DbSet<TipoAula> TipoAula => Set<TipoAula>();
+
+    public DbSet<SessaoAluno> SessaoAlunos => Set<SessaoAluno>();
+
+    public DbSet<Turma> Turmas => Set<Turma>();
+    public DbSet<TurmaAluno> TurmaAlunos => Set<TurmaAluno>();
 }

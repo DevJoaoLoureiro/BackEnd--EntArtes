@@ -1,6 +1,6 @@
 ﻿namespace EscolaDanca.DTOs;
 
-public class AddTurmaAlunoDto
+public class AddAlunoSessaoDto
 {
     public int AlunoId { get; set; }
 }
