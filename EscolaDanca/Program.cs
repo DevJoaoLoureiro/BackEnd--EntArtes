@@ -43,6 +43,11 @@ builder.Services.AddSwaggerGen(c =>
     });
 });
 
+
+//email service
+builder.Services.AddScoped<IEmailService, EmailService>();
+builder.Services.AddScoped<PasswordService>();
+
 // DB
 builder.Services.AddDbContext<AppDbContext>(opt =>
     opt.UseSqlServer(builder.Configuration.GetConnectionString("DefaultConnection"))

@@ -28,5 +28,7 @@ public class AppDbContext : DbContext
     public DbSet<MarketplaceInteresse> MarketplaceInteresses => Set<MarketplaceInteresse>();
 
     public DbSet<ConfirmacaoPresenca> ConfirmacaoPresenca => Set<ConfirmacaoPresenca>();
+
+    public DbSet<ConviteUtilizador> ConvitesUtilizador => Set<ConviteUtilizador>();
     public DbSet<Pagamento> Pagamentos => Set<Pagamento>();
 }
