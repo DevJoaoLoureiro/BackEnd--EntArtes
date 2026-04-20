@@ -34,9 +34,6 @@ public class ConfigController : ControllerBase
         return Ok(tipos);
     }
 
-    // ============================
-    // POST /api/config/tipo-aula
-    // ============================
     [HttpPost("tipo-aula")]
     [Authorize(Roles = "ADMIN,SUPER_ADMIN,PROFESSOR")]
     public async Task<IActionResult> CriarTipoAula([FromBody] TipoAula req)

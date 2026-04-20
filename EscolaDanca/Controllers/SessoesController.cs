@@ -212,9 +212,6 @@ public class SessoesController : ControllerBase
     // POST /api/sessoes
     // =========================================
 
-
-
-
     [HttpPost]
     [Authorize(Roles = "ADMIN,SUPER_ADMIN,PROFESSOR")]
     public async Task<IActionResult> Create([FromBody] CreateSessao req)
@@ -227,6 +224,10 @@ public class SessoesController : ControllerBase
             return BadRequest("A data/hora de fim tem de ser maior que a de início.");
 
         var professorId = req.ProfessorUtilizadorId ?? utilizadorId;
+
+        // sessão normal precisa de turma
+        if (!req.InscricaoAberta && !req.TurmaId.HasValue)
+            return BadRequest("Sessão normal precisa de turma.");
 
         var sessao = new SessaoAula
         {
@@ -242,14 +243,15 @@ public class SessoesController : ControllerBase
             Sumario = req.Sumario,
             FoiDada = false,
             MotivoFaltaProfessor = null,
-            TurmaId = req.TurmaId
+            TurmaId = req.InscricaoAberta ? null : req.TurmaId,
+            InscricaoAberta = req.InscricaoAberta
         };
 
         _db.SessoesAula.Add(sessao);
         await _db.SaveChangesAsync();
 
-        // AQUI
-        if (req.TurmaId.HasValue)
+        // só copia alunos automaticamente se NÃO for coaching
+        if (!req.InscricaoAberta && req.TurmaId.HasValue)
         {
             var alunosDaTurma = await _db.TurmaAlunos
                 .Where(x => x.TurmaId == req.TurmaId.Value)
@@ -285,9 +287,11 @@ public class SessoesController : ControllerBase
             sessao.Sumario,
             sessao.FoiDada,
             sessao.MotivoFaltaProfessor,
-            sessao.TurmaId
+            sessao.TurmaId,
+            sessao.InscricaoAberta
         });
     }
+
 
 
     [HttpPatch("{id}/terminar")]
@@ -318,10 +322,9 @@ public class SessoesController : ControllerBase
     // =========================================
     // POST /api/sessoes/{id}/confirmar
     // EE confirma ida à aula
-    // =========================================
     [HttpPost("{id}/confirmar")]
     [Authorize]
-    public async Task<IActionResult> ConfirmarPresenca(int id, [FromBody] ConfirmacaoPresenca req)
+    public async Task<IActionResult> ConfirmarPresenca(int id, [FromBody] ConfirmarSessaoDto req)
     {
         var utilizadorIdClaim = User.FindFirst(ClaimTypes.NameIdentifier)?.Value;
         if (!int.TryParse(utilizadorIdClaim, out var utilizadorId))
@@ -339,6 +342,7 @@ public class SessoesController : ControllerBase
             confirmacao.Vai = req.Vai;
             confirmacao.RespondidoPorUtilizadorId = utilizadorId;
             confirmacao.RespondidoEm = DateTime.UtcNow;
+
         }
         else
         {
@@ -348,7 +352,9 @@ public class SessoesController : ControllerBase
                 AlunoId = req.AlunoId,
                 Vai = req.Vai,
                 RespondidoPorUtilizadorId = utilizadorId,
-                RespondidoEm = DateTime.UtcNow
+                RespondidoEm = DateTime.UtcNow,
+                CriadoEm = DateTime.UtcNow,
+               
             };
 
             _db.ConfirmacaoPresenca.Add(confirmacao);
@@ -457,4 +463,284 @@ public class SessoesController : ControllerBase
 
         return Ok(presencas);
     }
+
+
+    [HttpGet("abertas")]
+    [Authorize]
+    public async Task<IActionResult> ListarSessoesAbertas()
+    {
+        var sessoes = await _db.SessoesAula
+            .AsNoTracking()
+            .Where(s => s.InscricaoAberta && !s.FoiDada)
+            .OrderBy(s => s.Inicio)
+            .Select(s => new
+            {
+                s.Id,
+                s.Inicio,
+                s.Fim,
+                s.Estado,
+                s.Sumario,
+                s.MaxAlunos,
+                s.InscricaoAberta
+            })
+            .ToListAsync();
+
+        return Ok(sessoes);
+    }
+
+
+
+    [HttpGet("pendentes-confirmacao")]
+    [Authorize(Roles = "ENCARREGADO,ALUNO")]
+    public async Task<IActionResult> PendentesConfirmacao()
+    {
+        var utilizadorIdClaim = User.FindFirst(ClaimTypes.NameIdentifier)?.Value;
+        var role = User.FindFirst(ClaimTypes.Role)?.Value;
+
+        if (!int.TryParse(utilizadorIdClaim, out var utilizadorId))
+            return Unauthorized();
+
+        var alunoIds = new List<int>();
+
+        if (role == "ALUNO")
+        {
+            alunoIds = await _db.Alunos
+                .Where(a => a.UtilizadorId == utilizadorId)
+                .Select(a => a.Id)
+                .ToListAsync();
+        }
+        else if (role == "ENCARREGADO")
+        {
+            var responsavel = await _db.Responsaveis
+                .FirstOrDefaultAsync(r => r.UtilizadorId == utilizadorId);
+
+            if (responsavel == null)
+                return Ok(new List<object>());
+
+            alunoIds = await _db.AlunoResponsaveis
+                .Where(ar => ar.ResponsavelId == responsavel.Id)
+                .Select(ar => ar.AlunoId)
+                .ToListAsync();
+        }
+
+        if (!alunoIds.Any())
+            return Ok(new List<object>());
+
+        var pendentes = await _db.SessaoAlunos
+            .AsNoTracking()
+            .Where(sa => alunoIds.Contains(sa.AlunoId))
+            .Where(sa => !_db.ConfirmacaoPresenca
+                .Any(c => c.SessaoAulaId == sa.SessaoAulaId && c.AlunoId == sa.AlunoId))
+            .Select(sa => new
+            {
+                sessaoId = sa.SessaoAulaId,
+                alunoId = sa.AlunoId,
+                alunoNome = sa.Aluno != null ? sa.Aluno.Nome : "",
+                dataInicio = sa.Sessao != null ? sa.Sessao.Inicio : DateTime.MinValue,
+                dataFim = sa.Sessao != null ? sa.Sessao.Fim : DateTime.MinValue,
+                turmaNome = sa.Sessao != null && sa.Sessao.Turma != null
+                    ? sa.Sessao.Turma.Nome
+                    : "",
+                professorNome = sa.Sessao != null && sa.Sessao.Professor != null
+                    ? sa.Sessao.Professor.Nome
+                    : ""
+            })
+            .OrderBy(x => x.dataInicio)
+            .ToListAsync();
+
+        return Ok(pendentes);
+    }
+
+
+
+    [HttpPost("{id}/inscrever-me")]
+    [Authorize(Roles = "ALUNO")]
+    public async Task<IActionResult> InscreverMe(int id)
+    {
+        var utilizadorIdClaim = User.FindFirst(ClaimTypes.NameIdentifier)?.Value;
+        if (!int.TryParse(utilizadorIdClaim, out var utilizadorId))
+            return Unauthorized();
+
+        var sessao = await _db.SessoesAula
+            .AsNoTracking()
+            .FirstOrDefaultAsync(s => s.Id == id);
+
+        if (sessao == null)
+            return NotFound("Sessão não encontrada.");
+
+        if (!sessao.InscricaoAberta)
+            return BadRequest("Esta sessão não aceita inscrições livres.");
+
+        if (sessao.FoiDada)
+            return BadRequest("A sessão já foi dada.");
+
+        if (sessao.Estado != null && sessao.Estado.ToUpper() != "AGENDADA")
+            return BadRequest("A sessão não está disponível para inscrição.");
+
+        var aluno = await _db.Alunos
+            .AsNoTracking()
+            .FirstOrDefaultAsync(a => a.UtilizadorId == utilizadorId && a.Ativo);
+
+        if (aluno == null)
+            return BadRequest("Este utilizador não está associado a um aluno ativo.");
+
+        var jaInscrito = await _db.SessaoAlunos
+            .AnyAsync(sa => sa.SessaoAulaId == id && sa.AlunoId == aluno.Id);
+
+        if (jaInscrito)
+            return BadRequest("Já estás inscrito nesta sessão.");
+
+        if (sessao.MaxAlunos.HasValue)
+        {
+            var totalInscritos = await _db.SessaoAlunos
+                .CountAsync(sa => sa.SessaoAulaId == id);
+
+            if (totalInscritos >= sessao.MaxAlunos.Value)
+                return BadRequest("A sessão já atingiu o número máximo de alunos.");
+        }
+
+        var inscricao = new SessaoAluno
+        {
+            SessaoAulaId = id,
+            AlunoId = aluno.Id,
+            AdicionadoPorUtilizadorId = utilizadorId,
+            AdicionadoEm = DateTime.UtcNow
+        };
+
+        _db.SessaoAlunos.Add(inscricao);
+
+        try
+        {
+            await _db.SaveChangesAsync();
+        }
+        catch (DbUpdateException)
+        {
+            return BadRequest("Não foi possível concluir a inscrição. Podes já estar inscrito ou a sessão ter ficado sem vagas.");
+        }
+
+        return Ok(new
+        {
+            message = "Inscrição efetuada com sucesso."
+        });
+    }
+    [HttpPost("{id}/inscrever-educandos")]
+    [Authorize(Roles = "ENCARREGADO")]
+    public async Task<IActionResult> InscreverEducandos(int id, [FromBody] InscreverAlunoRequest req)
+    {
+        var utilizadorIdClaim = User.FindFirst(ClaimTypes.NameIdentifier)?.Value;
+        if (!int.TryParse(utilizadorIdClaim, out var utilizadorId))
+            return Unauthorized();
+
+        var sessao = await _db.SessoesAula
+            .AsNoTracking()
+            .FirstOrDefaultAsync(s => s.Id == id);
+
+        if (sessao == null)
+            return NotFound("Sessão não encontrada.");
+
+        if (!sessao.InscricaoAberta)
+            return BadRequest("Esta sessão não aceita inscrições livres.");
+
+        if (sessao.FoiDada)
+            return BadRequest("A sessão já foi dada.");
+
+        if (sessao.Estado != null && sessao.Estado.ToUpper() != "AGENDADA")
+            return BadRequest("A sessão não está disponível para inscrição.");
+
+        if (req.AlunoIds == null || !req.AlunoIds.Any())
+            return BadRequest("Tem de selecionar pelo menos um educando.");
+
+        var responsavel = await _db.Responsaveis
+            .AsNoTracking()
+            .FirstOrDefaultAsync(r => r.UtilizadorId == utilizadorId);
+
+        if (responsavel == null)
+            return BadRequest("Responsável não encontrado.");
+
+        var alunoIdsPermitidos = await _db.AlunoResponsaveis
+            .Where(ar => ar.ResponsavelId == responsavel.Id)
+            .Select(ar => ar.AlunoId)
+            .ToListAsync();
+
+        var idsValidos = req.AlunoIds
+            .Where(idAluno => alunoIdsPermitidos.Contains(idAluno))
+            .Distinct()
+            .ToList();
+
+        if (!idsValidos.Any())
+            return Forbid();
+
+        var jaInscritos = await _db.SessaoAlunos
+            .Where(sa => sa.SessaoAulaId == id && idsValidos.Contains(sa.AlunoId))
+            .Select(sa => sa.AlunoId)
+            .ToListAsync();
+
+        var idsParaInserir = idsValidos
+            .Where(x => !jaInscritos.Contains(x))
+            .ToList();
+
+        if (!idsParaInserir.Any())
+        {
+            return BadRequest(new
+            {
+                message = "Todos os educandos selecionados já estão inscritos nesta sessão.",
+                inscritos = 0,
+                jaInscritos = jaInscritos.Count
+            });
+        }
+
+        if (sessao.MaxAlunos.HasValue)
+        {
+            var totalInscritosAtual = await _db.SessaoAlunos
+                .CountAsync(sa => sa.SessaoAulaId == id);
+
+            var vagasDisponiveis = sessao.MaxAlunos.Value - totalInscritosAtual;
+
+            if (vagasDisponiveis <= 0)
+            {
+                return BadRequest(new
+                {
+                    message = "A sessão já atingiu o número máximo de alunos."
+                });
+            }
+
+            if (idsParaInserir.Count > vagasDisponiveis)
+            {
+                idsParaInserir = idsParaInserir.Take(vagasDisponiveis).ToList();
+            }
+        }
+
+        foreach (var alunoId in idsParaInserir)
+        {
+            _db.SessaoAlunos.Add(new SessaoAluno
+            {
+                SessaoAulaId = id,
+                AlunoId = alunoId,
+                AdicionadoPorUtilizadorId = utilizadorId,
+                AdicionadoEm = DateTime.UtcNow
+            });
+        }
+
+        try
+        {
+            await _db.SaveChangesAsync();
+        }
+        catch (DbUpdateException)
+        {
+            return BadRequest(new
+            {
+                message = "Não foi possível concluir a inscrição. Alguns educandos podem já estar inscritos ou a sessão pode ter ficado sem vagas."
+            });
+        }
+
+        return Ok(new
+        {
+            message = "Educandos inscritos com sucesso.",
+            inscritos = idsParaInserir.Count,
+            jaInscritos = jaInscritos.Count,
+            totalPedidos = req.AlunoIds.Count
+        });
+    }
+
+
 }

@@ -1,27 +1,37 @@
-﻿using System.ComponentModel.DataAnnotations;
+﻿
+
+using System.ComponentModel.DataAnnotations;
 using System.ComponentModel.DataAnnotations.Schema;
 
 namespace EscolaDanca.Models;
 
-[Table("turma_alunos")]
-public class TurmaAluno
+[Table("turmas")]
+public class Turma
 {
     [Key]
     [Column("id")]
     public int Id { get; set; }
 
-    [Column("turma_id")]
-    public int TurmaId { get; set; }
+    [Column("nome")]
+    public string Nome { get; set; } = null!;
 
-    [Column("aluno_id")]
-    public int AlunoId { get; set; }
+    [Column("professor_utilizador_id")]
+    public int? ProfessorUtilizadorId { get; set; }
 
-    [Column("adicionado_em")]
-    public DateTime AdicionadoEm { get; set; }
+    [Column("tipo_aula_id")]
+    public int? TipoAulaId { get; set; }
 
-    [ForeignKey("TurmaId")]
-    public Turma? Turma { get; set; }
+    [Column("ativa")]
+    public bool Ativa { get; set; }
 
-    [ForeignKey("AlunoId")]
-    public Aluno? Aluno { get; set; }
+    [Column("criada_em")]
+    public DateTime CriadaEm { get; set; }
+
+    [ForeignKey("ProfessorUtilizadorId")]
+    public Utilizador? Professor { get; set; }
+
+    [ForeignKey("TipoAulaId")]
+    public TipoAula? TipoAula { get; set; }
+
+    public ICollection<TurmaAluno> TurmaAlunos { get; set; } = new List<TurmaAluno>();
 }

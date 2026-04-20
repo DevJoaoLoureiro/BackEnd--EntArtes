@@ -5,6 +5,7 @@ using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using System.Security.Claims;
+using System.Linq;
 
 [ApiController]
 [Route("api/turmas")]
@@ -21,8 +22,8 @@ public class TurmasController : ControllerBase
     [Authorize]
     public async Task<IActionResult> GetAll()
     {
-        var role = User.FindFirst(ClaimTypes.Role)?.Value;
-        var userIdClaim = User.FindFirst(ClaimTypes.NameIdentifier)?.Value;
+        var role = User.FindFirst(System.Security.Claims.ClaimTypes.Role)?.Value;
+        var userIdClaim = User.FindFirst(System.Security.Claims.ClaimTypes.NameIdentifier)?.Value;
 
         if (!int.TryParse(userIdClaim, out var userId))
             return Unauthorized();
@@ -35,18 +36,21 @@ public class TurmasController : ControllerBase
         }
 
         var turmas = await query
-         .OrderBy(t => t.Nome)
-         .Select(t => new
-         {
-             t.Id,
-             t.Nome,
-             t.ProfessorUtilizadorId,
-             ProfessorNome = t.Professor.Nome,
-             t.TipoAulaId,
-             TipoAulaNome = t.TipoAula.Nome,
-             t.Ativa
-         })
-         .ToListAsync();
+        .OrderBy(t => t.Nome)
+        .Select(t => new TurmaResponseDto
+        {
+            Id = t.Id,
+            Nome = t.Nome,
+    
+
+            ProfessorUtilizadorId = t.ProfessorUtilizadorId,
+            ProfessorNome = _db.Utilizadores
+        .Where(u => u.Id == t.ProfessorUtilizadorId)
+        .Select(u => u.Nome)
+        .FirstOrDefault(),
+            Ativa = t.Ativa
+        })
+        .ToListAsync();
 
         return Ok(turmas);
     }

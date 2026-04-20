@@ -4,6 +4,7 @@ using EscolaDanca.Models;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
+using System.Security.Claims;
 
 namespace EscolaDanca.Api.Controllers;
 
@@ -21,6 +22,35 @@ public class AlunosController : ControllerBase
         var alunos = await _db.Alunos.OrderBy(a => a.Nome).ToListAsync();
         return Ok(alunos);
     }
+
+    [HttpGet("meus-educandos")]
+    [Authorize(Roles = "ENCARREGADO")]
+    public async Task<IActionResult> MeusEducandos()
+    {
+        var utilizadorIdClaim = User.FindFirst(ClaimTypes.NameIdentifier)?.Value;
+        if (!int.TryParse(utilizadorIdClaim, out var utilizadorId))
+            return Unauthorized();
+
+        var responsavel = await _db.Responsaveis
+            .AsNoTracking()
+            .FirstOrDefaultAsync(r => r.UtilizadorId == utilizadorId);
+
+        if (responsavel == null)
+            return Ok(new List<object>());
+
+        var educandos = await _db.AlunoResponsaveis
+            .Where(ar => ar.ResponsavelId == responsavel.Id)
+            .Select(ar => new
+            {
+                id = ar.Aluno.Id,
+                nome = ar.Aluno.Nome
+            })
+            .OrderBy(a => a.nome)
+            .ToListAsync();
+
+        return Ok(educandos);
+    }
+    
 
     [HttpGet("count")]
     [Authorize(Roles = "ADMIN,SUPER_ADMIN,PROFESSOR")]

@@ -26,7 +26,8 @@ public class ConfirmacaoPresenca
     public DateTime RespondidoEm { get; set; }
 
 
-    [Column("criado_em")] public DateTime CriadoEm { get; set; }
+    [Column("criado_em")] 
+    public DateTime CriadoEm { get; set; }
 
     public Aluno Aluno { get; set; }
 

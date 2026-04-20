@@ -33,4 +33,17 @@ public class Presenca
 
     [ForeignKey("MarcadoPorUtilizadorId")]
     public Utilizador? MarcadoPor { get; set; }
+
+
+    [Column("validado")]
+    public bool? Validado { get; set; }
+
+    [Column("validado_por_utilizador_id")]
+    public int? ValidadoPorUtilizadorId { get; set; }
+
+    [Column("validado_em")]
+    public DateTime? ValidadoEm { get; set; }
+
+    [ForeignKey("ValidadoPorUtilizadorId")]
+    public Utilizador? ValidadoPor { get; set; }
 }

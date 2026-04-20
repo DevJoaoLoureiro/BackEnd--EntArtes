@@ -1,4 +1,6 @@
-﻿namespace EscolaDanca.DTOs;
+﻿using System.ComponentModel.DataAnnotations.Schema;
+
+namespace EscolaDanca.DTOs;
 
 public class CreateSessao
 {
@@ -11,5 +13,8 @@ public class CreateSessao
     public int? MaxAlunos { get; set; }
     public int? TurmaId { get; set; }
 
+
+    [Column("inscricao_aberta")]
+    public bool InscricaoAberta { get; set; }
     public string? Sumario { get; set; }
 }

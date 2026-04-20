@@ -234,6 +234,7 @@ public class UtilizadoresController : ControllerBase
 
         // 2. Procurar e validar o convite
         var convite = await _db.ConvitesUtilizador
+
             .FirstOrDefaultAsync(c => c.Token == req.Token);
 
         if (convite == null) return BadRequest("Convite inválido.");

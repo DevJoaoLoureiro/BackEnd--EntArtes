@@ -24,6 +24,8 @@ public class AppDbContext : DbContext
     public DbSet<AlunoResponsavel> AlunoResponsaveis => Set<AlunoResponsavel>();
 
 
+
+    
     public DbSet<SessaoAula> SessoesAula => Set<SessaoAula>();
     public DbSet<Presenca> Presencas => Set<Presenca>();
     public DbSet<DesmarcacaoAula> DesmarcacoesAula => Set<DesmarcacaoAula>();

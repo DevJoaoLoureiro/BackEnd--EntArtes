@@ -44,6 +44,9 @@ public class SessaoAula
     [Column("foi_dada")]
     public bool FoiDada { get; set; }
 
+    [Column("inscricao_aberta")]
+    public bool InscricaoAberta { get; set; }
+
     [Column("motivo_falta_professor")]
     public string? MotivoFaltaProfessor { get; set; }
 
