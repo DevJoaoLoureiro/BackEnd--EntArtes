@@ -1,6 +1,9 @@
 ﻿using EscolaDanca.Controllers;
+using EscolaDanca.DTOs;
 using EscolaDanca.Models;
+using EscolaDanca.Services;
 using EscolaDanca.Tests.Helpers;
+using FluentAssertions;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
 using System.Security.Claims;
@@ -20,175 +23,101 @@ public class SessoesControllerTests
     }
 
     [Fact]
-    public async Task InscreverMe_DeveFalhar_SeSessaoNaoExistir()
+    public async Task CriarSessao_ComDatasInvalidas_DeveDarBadRequest()
     {
-        using var db = DbContextFactory.Create();
-        var controller = new SessoesController(db);
+        var db = DbContextFactory.Create();
+
+        var pagamentos = new PagamentoService(db);
+
+        var controller = new SessoesController(db, pagamentos);
 
         controller.ControllerContext = new ControllerContext
         {
             HttpContext = new DefaultHttpContext
             {
-                User = CriarUser(1, "ALUNO")
+                User = CriarUser(1, "ADMIN")
             }
         };
 
-        var result = await controller.InscreverMe(999);
+        var dto = new CreateSessao
+        {
+            DataInicio = DateTime.UtcNow,
+            DataFim = DateTime.UtcNow.AddHours(-1)
+        };
 
-        var notFound = Assert.IsType<NotFoundObjectResult>(result);
-        Assert.Equal("Sessão não encontrada.", notFound.Value);
+        var result = await controller.Create(dto);
+
+        result.Should().BeOfType<BadRequestObjectResult>();
     }
 
     [Fact]
-    public async Task InscreverMe_DeveFalhar_SeSessaoNaoAceitaInscricoes()
+    public async Task CriarCoaching_DeveCriarSessao()
     {
-        using var db = DbContextFactory.Create();
+        var db = DbContextFactory.Create();
 
-        db.SessoesAula.Add(new SessaoAula
-        {
-            Id = 1,
-            InscricaoAberta = false,
-            FoiDada = false,
-            Estado = "AGENDADA",
-            Inicio = DateTime.UtcNow.AddDays(1),
-            Fim = DateTime.UtcNow.AddDays(1).AddHours(1),
-            CriadoPorUtilizadorId = 10
-        });
+        var pagamentos = new PagamentoService(db);
 
-        db.Alunos.Add(new Aluno
-        {
-            Id = 1,
-            Nome = "Aluno Teste",
-            DataNascimento = new DateOnly(2010, 1, 1), 
-            Ativo = true,
-            CriadoEm = DateTime.UtcNow,
-            UtilizadorId = 1
-        });
+        var controller = new SessoesController(db, pagamentos);
 
-        await db.SaveChangesAsync();
-
-        var controller = new SessoesController(db);
         controller.ControllerContext = new ControllerContext
         {
             HttpContext = new DefaultHttpContext
             {
-                User = CriarUser(1, "ALUNO")
+                User = CriarUser(1, "ADMIN")
             }
         };
 
-        var result = await controller.InscreverMe(1);
-
-        var badRequest = Assert.IsType<BadRequestObjectResult>(result);
-        Assert.Equal("Esta sessão não aceita inscrições livres.", badRequest.Value);
-    }
-
-    [Fact]
-    public async Task InscreverMe_DeveFalhar_SeSessaoLotada()
-    {
-        using var db = DbContextFactory.Create();
-
-        db.SessoesAula.Add(new SessaoAula
+        var dto = new CreateSessao
         {
-            Id = 1,
+            DataInicio = DateTime.UtcNow.AddDays(1),
+            DataFim = DateTime.UtcNow.AddDays(1).AddHours(1),
             InscricaoAberta = true,
-            FoiDada = false,
-            Estado = "AGENDADA",
-            Inicio = DateTime.UtcNow.AddDays(1),
-            Fim = DateTime.UtcNow.AddDays(1).AddHours(1),
-            CriadoPorUtilizadorId = 10,
-            MaxAlunos = 1
-        });
-
-        db.Alunos.AddRange(
-            new Aluno
-            {
-                Id = 1,
-                Nome = "Aluno 1",
-                DataNascimento = new DateOnly(2010, 1, 1), // ✅
-                Ativo = true,
-                CriadoEm = DateTime.UtcNow,
-                UtilizadorId = 1
-            },
-            new Aluno
-            {
-                Id = 2,
-                Nome = "Aluno 2",
-                DataNascimento = new DateOnly(2010, 1, 1), 
-                Ativo = true,
-                CriadoEm = DateTime.UtcNow,
-                UtilizadorId = 2
-            }
-        );
-
-        db.SessaoAlunos.Add(new SessaoAluno
-        {
-            SessaoAulaId = 1,
-            AlunoId = 2,
-            AdicionadoPorUtilizadorId = 10,
-            AdicionadoEm = DateTime.UtcNow
-        });
-
-        await db.SaveChangesAsync();
-
-        var controller = new SessoesController(db);
-        controller.ControllerContext = new ControllerContext
-        {
-            HttpContext = new DefaultHttpContext
-            {
-                User = CriarUser(1, "ALUNO")
-            }
+            PrecoCoaching = 15
         };
 
-        var result = await controller.InscreverMe(1);
+        var result = await controller.Create(dto);
 
-        var badRequest = Assert.IsType<BadRequestObjectResult>(result);
-        Assert.Equal("A sessão já atingiu o número máximo de alunos.", badRequest.Value);
+        result.Should().BeOfType<CreatedAtActionResult>();
+
+        db.SessoesAula.Count().Should().Be(1);
     }
 
     [Fact]
-    public async Task InscreverMe_DeveInscrever_QuandoTudoEstaCorreto()
+    public async Task TerminarSessao_DeveMarcarComoTerminada()
     {
-        using var db = DbContextFactory.Create();
+        var db = DbContextFactory.Create();
 
-        db.SessoesAula.Add(new SessaoAula
+        var pagamentos = new PagamentoService(db);
+
+        var sessao = new SessaoAula
         {
-            Id = 1,
-            InscricaoAberta = true,
-            FoiDada = false,
+            ProfessorUtilizadorId = 1,
+            Inicio = DateTime.UtcNow,
+            Fim = DateTime.UtcNow.AddHours(1),
             Estado = "AGENDADA",
-            Inicio = DateTime.UtcNow.AddDays(1),
-            Fim = DateTime.UtcNow.AddDays(1).AddHours(1),
-            CriadoPorUtilizadorId = 10,
-            MaxAlunos = 10
-        });
-
-        db.Alunos.Add(new Aluno
-        {
-            Id = 1,
-            Nome = "Aluno Teste",
-            DataNascimento = new DateOnly(2010, 1, 1), 
-            Ativo = true,
+            CriadoPorUtilizadorId = 1,
             CriadoEm = DateTime.UtcNow,
-            UtilizadorId = 1
-        });
+            FoiDada = false
+        };
+
+        db.SessoesAula.Add(sessao);
 
         await db.SaveChangesAsync();
 
-        var controller = new SessoesController(db);
+        var controller = new SessoesController(db, pagamentos);
+
         controller.ControllerContext = new ControllerContext
         {
             HttpContext = new DefaultHttpContext
             {
-                User = CriarUser(1, "ALUNO")
+                User = CriarUser(1, "ADMIN")
             }
         };
 
-        var result = await controller.InscreverMe(1);
+        var result = await controller.TerminarAula(sessao.Id);
 
-        var ok = Assert.IsType<OkObjectResult>(result);
-        Assert.NotNull(ok.Value);
+        result.Should().BeOfType<OkObjectResult>();
 
-        // garante que foi mesmo inserido
-        Assert.Single(db.SessaoAlunos);
+        db.SessoesAula.First().FoiDada.Should().BeTrue();
     }
 }
