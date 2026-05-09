@@ -47,6 +47,9 @@ public class SessaoAula
     [Column("inscricao_aberta")]
     public bool InscricaoAberta { get; set; }
 
+    [Column("preco_coaching")]
+    public decimal? PrecoCoaching { get; set; }
+
     [Column("motivo_falta_professor")]
     public string? MotivoFaltaProfessor { get; set; }
 

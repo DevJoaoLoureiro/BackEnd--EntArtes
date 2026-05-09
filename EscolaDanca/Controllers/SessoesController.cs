@@ -1,20 +1,24 @@
 using EscolaDanca.Data;
 using EscolaDanca.DTOs;
 using EscolaDanca.Models;
+using EscolaDanca.Services;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using System.Security.Claims;
+
 
 [ApiController]
 [Route("api/sessoes")]
 public class SessoesController : ControllerBase
 {
     private readonly AppDbContext _db;
+    private readonly PagamentoService _pagamentos;
 
-    public SessoesController(AppDbContext db)
+    public SessoesController(AppDbContext db, PagamentoService pagamentos)
     {
         _db = db;
+        _pagamentos = pagamentos;
     }
 
     // =========================================
@@ -244,7 +248,8 @@ public class SessoesController : ControllerBase
             FoiDada = false,
             MotivoFaltaProfessor = null,
             TurmaId = req.InscricaoAberta ? null : req.TurmaId,
-            InscricaoAberta = req.InscricaoAberta
+            InscricaoAberta = req.InscricaoAberta,
+            PrecoCoaching = req.PrecoCoaching   
         };
 
         _db.SessoesAula.Add(sessao);
@@ -481,7 +486,8 @@ public class SessoesController : ControllerBase
                 s.Estado,
                 s.Sumario,
                 s.MaxAlunos,
-                s.InscricaoAberta
+                s.InscricaoAberta,
+                s.PrecoCoaching
             })
             .ToListAsync();
 
@@ -612,6 +618,7 @@ public class SessoesController : ControllerBase
         try
         {
             await _db.SaveChangesAsync();
+            await _pagamentos.CriarPagamentoCoachingAsync(id, aluno.Id);
         }
         catch (DbUpdateException)
         {
@@ -724,6 +731,10 @@ public class SessoesController : ControllerBase
         try
         {
             await _db.SaveChangesAsync();
+            foreach(var alunoId in idsParaInserir)
+            {
+                await _pagamentos.CriarPagamentoCoachingAsync(id, alunoId);
+            }
         }
         catch (DbUpdateException)
         {

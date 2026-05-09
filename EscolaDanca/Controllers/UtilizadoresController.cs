@@ -5,6 +5,7 @@ using EscolaDanca.Services;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Caching.Memory;
 using System.Security.Claims;
 
 namespace EscolaDanca.Controllers;
@@ -17,17 +18,21 @@ public class UtilizadoresController : ControllerBase
     private readonly PasswordService _pw;
     private readonly IEmailService _emailService;
     private readonly IConfiguration _cfg;
+    private readonly IMemoryCache _memoryCache;
+
 
     public UtilizadoresController(
         AppDbContext db,
         PasswordService pw,
         IEmailService emailService,
-        IConfiguration cfg)
+        IConfiguration cfg, IMemoryCache memoryCache)
     {
         _db = db;
         _pw = pw;
         _emailService = emailService;
         _cfg = cfg;
+        _memoryCache = memoryCache;
+      
     }
 
     [HttpPost("convite")]
@@ -124,7 +129,10 @@ public class UtilizadoresController : ControllerBase
             perfil = convite.Perfil
         });
     }
-
+    /*
+     * Este método é complexo porque tem de garantir que ao eliminar um utilizador, eliminamos também todas as entidades relacionadas (aluno, responsável, sessões, presenças, etc) para não deixar "órfãos" na base de dados.
+     * Além disso, tem uma proteção para impedir que um utilizador se elimine a si próprio.
+     
     [HttpDelete("{id}")]
     [Authorize(Roles = "ADMIN,SUPER_ADMIN")]
     public async Task<IActionResult> Remover(int id)
@@ -218,7 +226,48 @@ public class UtilizadoresController : ControllerBase
         }
     }
 
+    */
 
+    [HttpDelete("{id}")]
+    [Authorize(Roles = "ADMIN,SUPER_ADMIN")]
+    public async Task<IActionResult> Remover(int id)
+    {
+        try
+        {
+            var user = await _db.Utilizadores.FindAsync(id);
+
+            if (user == null)
+                return NotFound("Utilizador não encontrado.");
+
+            var userIdClaim = User.FindFirst(ClaimTypes.NameIdentifier)?.Value;
+
+            if (userIdClaim != null && int.Parse(userIdClaim) == id)
+                return BadRequest("Não pode remover o próprio utilizador.");
+
+            if (!user.Ativo)
+                return BadRequest("Utilizador já está inativo.");
+
+            user.Ativo = false;
+
+            // 1. Guarda a alteração na Base de Dados
+            await _db.SaveChangesAsync();
+
+            // 2. Lógica de Limpeza de Cache:
+            // Removemos a "fotografia" antiga do cache. 
+            // No próximo F5 do utilizador, o middleware não encontrará nada no cache
+            // e será forçado a ir à DB, onde verá que Ativo = false.
+            _memoryCache.Remove($"user_ativo_{id}");
+
+            return Ok(new
+            {
+                message = "Utilizador desativado com sucesso. O acesso foi revogado imediatamente."
+            });
+        }
+        catch (Exception ex)
+        {
+            return StatusCode(500, ex.InnerException?.Message ?? ex.Message);
+        }
+    }
     [HttpPost("registo-por-convite")]
     [AllowAnonymous]
     public async Task<IActionResult> RegistoPorConvite([FromBody] RegistoPorConviteRequest req)
@@ -249,14 +298,13 @@ public class UtilizadoresController : ControllerBase
         if (await _db.Utilizadores.AnyAsync(u => u.Email != null && u.Email.ToLower() == convite.Email.ToLower()))
             return BadRequest("Já existe uma conta com este email.");
 
-        // 4. Validação específica para ENCARREGADO
         if (convite.Perfil == "ENCARREGADO")
         {
             if (req.Educandos == null || !req.Educandos.Any(e => !string.IsNullOrWhiteSpace(e.Nome)))
                 return BadRequest("Sendo encarregado, tem de indicar o nome de pelo menos um educando.");
         }
 
-        // 5. Instanciar o Utilizador (Sem salvar ainda!)
+        //  Instanciar o Utilizador 
         var user = new Utilizador
         {
             Nome = req.Nome.Trim(),
@@ -269,7 +317,7 @@ public class UtilizadoresController : ControllerBase
         };
         _db.Utilizadores.Add(user);
 
-        // 6. Lógica por Perfil (ALUNO ou ENCARREGADO)
+       
         if (user.Perfil == "ALUNO")
         {
             var aluno = new Aluno
@@ -314,11 +362,10 @@ public class UtilizadoresController : ControllerBase
             }
         }
 
-        // 7. Marcar convite como usado
+     
         convite.Usado = true;
 
-        // 8. Único Ponto de Gravação
-        // Se o erro "Invalid column name" persistir em qualquer tabela, nada será gravado aqui.
+     
         try
         {
             await _db.SaveChangesAsync();

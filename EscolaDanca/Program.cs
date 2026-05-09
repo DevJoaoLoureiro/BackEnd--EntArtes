@@ -5,6 +5,7 @@ using Microsoft.EntityFrameworkCore;
 using Microsoft.IdentityModel.Tokens;
 using Microsoft.OpenApi.Models;
 using System.Text;
+using EscolaDanca.Middleware;
 using System.Text.Json.Serialization;
 
 var builder = WebApplication.CreateBuilder(args);
@@ -44,10 +45,13 @@ builder.Services.AddSwaggerGen(c =>
 });
 
 
+//builder cache
+builder.Services.AddMemoryCache();
 //email service
 builder.Services.AddScoped<IEmailService, EmailService>();
 builder.Services.AddScoped<PasswordService>();
-
+//pagamento service
+builder.Services.AddScoped<PagamentoService>();
 // DB
 builder.Services.AddDbContext<AppDbContext>(opt =>
     opt.UseSqlServer(builder.Configuration.GetConnectionString("DefaultConnection"))
@@ -96,9 +100,11 @@ if (app.Environment.IsDevelopment())
     app.UseSwaggerUI();
 }
 
+app.UseStaticFiles();
 app.UseHttpsRedirection();
 app.UseDeveloperExceptionPage();
 app.UseAuthentication();
+app.UseMiddleware<UtilizadorAtivoMiddleware>();
 app.UseAuthorization();
 
 app.MapControllers();

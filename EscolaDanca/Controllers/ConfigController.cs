@@ -91,9 +91,7 @@ public class ConfigController : ControllerBase
         return Ok(estudio);
     }
 
-    // =========================
-    // GET ESTUDIO
-    // =========================
+    
     [HttpGet("estudio")]
     public async Task<IActionResult> GetEstudio()
     {

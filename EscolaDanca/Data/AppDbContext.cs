@@ -13,8 +13,24 @@ public class AppDbContext : DbContext
     {
         // Isto vai escrever o SQL real na janela "Output" (Saída) do Visual Studio
         optionsBuilder.LogTo(Console.WriteLine);
+
+
     }
 
+
+
+    protected override void OnModelCreating(ModelBuilder modelBuilder)
+    {
+        base.OnModelCreating(modelBuilder);
+
+        modelBuilder.Entity<EventoProfessor>()
+        .HasIndex(x => new { x.EventoId, x.ProfessorUtilizadorId })
+        .IsUnique();
+
+            modelBuilder.Entity<EventoInscricao>()
+                .HasIndex(x => new { x.EventoId, x.AlunoId })
+                .IsUnique();
+    }
 
     public AppDbContext(DbContextOptions<AppDbContext> options) : base(options) { }
 
@@ -34,8 +50,11 @@ public class AppDbContext : DbContext
     public DbSet<Evento> Eventos => Set<Evento>();
 
     public DbSet<InventarioItem> InventarioItens => Set<InventarioItem>();
+    public DbSet<InventarioMovimento> InventarioMovimentos => Set<InventarioMovimento>();
     public DbSet<Aluguer> Alugueres => Set<Aluguer>();
 
+
+    public DbSet<MarketplaceAluguer> MarketplaceAlugueres => Set<MarketplaceAluguer>();
     public DbSet<MarketplaceAnuncio> MarketplaceAnuncios => Set<MarketplaceAnuncio>();
     public DbSet<MarketplaceInteresse> MarketplaceInteresses => Set<MarketplaceInteresse>();
 
@@ -50,4 +69,9 @@ public class AppDbContext : DbContext
 
     public DbSet<Turma> Turmas => Set<Turma>();
     public DbSet<TurmaAluno> TurmaAlunos => Set<TurmaAluno>();
+
+    public DbSet<EventoProfessor> EventoProfessores => Set<EventoProfessor>();
+    public DbSet<EventoInscricao> EventoInscricoes => Set<EventoInscricao>();
+
+
 }

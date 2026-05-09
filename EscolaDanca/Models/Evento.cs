@@ -37,5 +37,8 @@ public class Evento
 
     [Column("criado_em")] public DateTime CriadoEm { get; set; } = DateTime.UtcNow;
 
-   
+    public List<EventoProfessor> Professores { get; set; } = new();
+    public List<EventoInscricao> Inscricoes { get; set; } = new();
+
+
 }

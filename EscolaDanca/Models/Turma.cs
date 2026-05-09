@@ -33,5 +33,8 @@ public class Turma
     [ForeignKey("TipoAulaId")]
     public TipoAula? TipoAula { get; set; }
 
+
+    [Column("preco_mensal")]
+    public decimal? PrecoMensal { get; set; }
     public ICollection<TurmaAluno> TurmaAlunos { get; set; } = new List<TurmaAluno>();
 }

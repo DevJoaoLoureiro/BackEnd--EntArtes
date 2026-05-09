@@ -8,4 +8,6 @@ public class EventoRequest
     public DateTime? DataFim { get; set; }
     public string? Local { get; set; }
     public bool Publico { get; set; } = true;
+
+    public List<int> ProfessoresIds { get; set; } = new();
 }
