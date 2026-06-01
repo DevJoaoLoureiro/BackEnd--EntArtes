@@ -1,32 +1,103 @@
-﻿using System.Net;
-using System.Net.Mail;
+﻿using EscolaDanca.Data;
+using EscolaDanca.Models;
+using Microsoft.EntityFrameworkCore;
 
 namespace EscolaDanca.Services;
 
-public class EmailService : IEmailService
+public class PagamentoService
 {
-    private readonly IConfiguration _cfg;
+    private readonly AppDbContext _db;
 
-    public EmailService(IConfiguration cfg)
+    public PagamentoService(AppDbContext db)
     {
-        _cfg = cfg;
+        _db = db;
     }
 
-    public async Task SendAsync(string to, string subject, string body)
+    // =========================
+    // COACHING
+    // =========================
+    public async Task CriarPagamentoCoachingAsync(int sessaoId, int alunoId)
     {
-        var smtpHost = _cfg["Email:SmtpHost"];
-        var smtpPort = int.Parse(_cfg["Email:SmtpPort"]!);
-        var smtpUser = _cfg["Email:Username"];
-        var smtpPass = _cfg["Email:Password"];
-        var from = _cfg["Email:From"];
+        var sessao = await _db.SessoesAula
+            .AsNoTracking()
+            .FirstOrDefaultAsync(s => s.Id == sessaoId);
 
-        using var client = new SmtpClient(smtpHost, smtpPort)
+        if (sessao == null)
+            return;
+
+        // Só coaching
+        if (!sessao.InscricaoAberta)
+            return;
+
+        if (!sessao.PrecoCoaching.HasValue || sessao.PrecoCoaching.Value <= 0)
+            return;
+
+        var jaExiste = await _db.Pagamentos.AnyAsync(p =>
+            p.AlunoId == alunoId &&
+            p.Tipo == "COACHING" &&
+            p.SessaoId == sessaoId);
+
+        if (jaExiste)
+            return;
+
+        var pagamento = new Pagamento
         {
-            Credentials = new NetworkCredential(smtpUser, smtpPass),
-            EnableSsl = true
+            AlunoId = alunoId,
+            SessaoId = sessaoId,
+            Tipo = "COACHING",
+            Valor = sessao.PrecoCoaching.Value,
+            Estado = "PENDENTE",
+            Referencia = $"COACH-S{sessaoId}-A{alunoId}",
+            Descricao = $"Coaching #{sessaoId}",
+            CriadoEm = DateTime.UtcNow
         };
 
-        using var mail = new MailMessage(from!, to, subject, body);
-        await client.SendMailAsync(mail);
+        _db.Pagamentos.Add(pagamento);
+
+        await _db.SaveChangesAsync();
+    }
+
+    // =========================
+    // MENSALIDADE
+    // =========================
+    public async Task CriarPagamentoMensalidadeAsync(int turmaId, int alunoId)
+    {
+        var turma = await _db.Turmas
+            .AsNoTracking()
+            .FirstOrDefaultAsync(t => t.Id == turmaId);
+
+        if (turma == null)
+            return;
+
+        if (!turma.PrecoMensal.HasValue || turma.PrecoMensal.Value <= 0)
+            return;
+
+        var hoje = DateTime.Today;
+
+        var jaExiste = await _db.Pagamentos.AnyAsync(p =>
+            p.AlunoId == alunoId &&
+            p.Tipo == "MENSALIDADE" &&
+            p.Mes == hoje.Month &&
+            p.Ano == hoje.Year);
+
+        if (jaExiste)
+            return;
+
+        var pagamento = new Pagamento
+        {
+            AlunoId = alunoId,
+            Tipo = "MENSALIDADE",
+            Valor = turma.PrecoMensal.Value,
+            Estado = "PENDENTE",
+            Mes = hoje.Month,
+            Ano = hoje.Year,
+            Referencia = $"MENS-{hoje.Year}-{hoje.Month:00}-T{turmaId}-A{alunoId}",
+            Descricao = $"Mensalidade {hoje.Month:00}/{hoje.Year}",
+            CriadoEm = DateTime.UtcNow
+        };
+
+        _db.Pagamentos.Add(pagamento);
+
+        await _db.SaveChangesAsync();
     }
 }
