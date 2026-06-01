@@ -10,10 +10,12 @@ using System.Text.Json.Serialization;
 
 var builder = WebApplication.CreateBuilder(args);
 
-builder.Services.AddControllers();
+builder.Services.AddControllers()
+    .AddJsonOptions(x =>
+        x.JsonSerializerOptions.ReferenceHandler = ReferenceHandler.IgnoreCycles);
+
 builder.Services.AddEndpointsApiExplorer();
 
-// Swagger + Bearer
 builder.Services.AddSwaggerGen(c =>
 {
     c.SwaggerDoc("v1", new() { Title = "EscolaDanca API", Version = "v1" });
@@ -39,42 +41,33 @@ builder.Services.AddSwaggerGen(c =>
                     Id = "Bearer"
                 }
             },
-            new string[] {}
+            Array.Empty<string>()
         }
     });
 });
 
-
-//builder cache
 builder.Services.AddMemoryCache();
-//email service
+
 builder.Services.AddScoped<IEmailService, EmailService>();
 builder.Services.AddScoped<PasswordService>();
-//pagamento service
 builder.Services.AddScoped<PagamentoService>();
-// DB
+
 builder.Services.AddDbContext<AppDbContext>(opt =>
     opt.UseSqlServer(builder.Configuration.GetConnectionString("DefaultConnection"))
 );
 
-// CORS
 builder.Services.AddCors(options =>
 {
     options.AddPolicy("FrontEnd", policy =>
+    {
         policy.AllowAnyOrigin()
               .AllowAnyHeader()
-              .AllowAnyMethod()
-    );
+              .AllowAnyMethod();
+    });
 });
 
-
-builder.Services.AddControllers().AddJsonOptions(x =>
-    x.JsonSerializerOptions.ReferenceHandler = ReferenceHandler.IgnoreCycles);
-
-
-builder.Services.AddScoped<PasswordService>();
-// JWT
 var jwtKey = builder.Configuration["Jwt:Key"]!;
+
 builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
     .AddJwtBearer(opt =>
     {
@@ -86,7 +79,8 @@ builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
             ValidateIssuerSigningKey = true,
             ValidIssuer = builder.Configuration["Jwt:Issuer"],
             ValidAudience = builder.Configuration["Jwt:Audience"],
-            IssuerSigningKey = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(jwtKey))
+            IssuerSigningKey = new SymmetricSecurityKey(
+                Encoding.UTF8.GetBytes(jwtKey))
         };
     });
 
@@ -94,18 +88,22 @@ var app = builder.Build();
 
 app.UseCors("FrontEnd");
 
-if (app.Environment.IsDevelopment())
-{
-    app.UseSwagger();
-    app.UseSwaggerUI();
-}
+app.UseSwagger();
+app.UseSwaggerUI();
 
 app.UseStaticFiles();
-app.UseHttpsRedirection();
-app.UseDeveloperExceptionPage();
+
+// Importante para Render: deixa isto comentado
+// app.UseHttpsRedirection();
+
 app.UseAuthentication();
+
 app.UseMiddleware<UtilizadorAtivoMiddleware>();
+
 app.UseAuthorization();
 
 app.MapControllers();
+
+app.MapGet("/", () => "API EscolaDanca online!");
+
 app.Run();
