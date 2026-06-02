@@ -19,7 +19,10 @@ public class AlunosController : ControllerBase
     [Authorize(Roles = "ADMIN,SUPER_ADMIN,PROFESSOR")]
     public async Task<IActionResult> Listar()
     {
-        var alunos = await _db.Alunos.OrderBy(a => a.Nome).ToListAsync();
+        var alunos = await _db.Alunos
+            .Where(a => a.Ativo)
+            .OrderBy(a => a.Nome)
+            .ToListAsync();
         return Ok(alunos);
     }
 
@@ -76,19 +79,7 @@ public class AlunosController : ControllerBase
         var aluno = await _db.Alunos.FindAsync(id);
         if (aluno == null) return NotFound();
 
-        var responsaveis = await _db.AlunoResponsaveis
-            .Where(ar => ar.AlunoId == id)
-            .ToListAsync();
-
-        _db.AlunoResponsaveis.RemoveRange(responsaveis);
-
-        var sessoesAluno = await _db.SessaoAlunos
-            .Where(sa => sa.AlunoId == id)
-            .ToListAsync();
-
-        _db.SessaoAlunos.RemoveRange(sessoesAluno);
-
-        _db.Alunos.Remove(aluno);
+        aluno.Ativo = false;
 
         await _db.SaveChangesAsync();
 
