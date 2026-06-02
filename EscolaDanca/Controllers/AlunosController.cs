@@ -69,7 +69,7 @@ public class AlunosController : ControllerBase
         return Ok(aluno);
     }
 
-   
+
 
     [HttpDelete("{id:int}")]
     [Authorize(Roles = "ADMIN,SUPER_ADMIN")]
@@ -78,8 +78,16 @@ public class AlunosController : ControllerBase
         var aluno = await _db.Alunos.FindAsync(id);
         if (aluno == null) return NotFound();
 
+        var relacoes = await _db.AlunoResponsaveis
+            .Where(ar => ar.AlunoId == id)
+            .ToListAsync();
+
+        _db.AlunoResponsaveis.RemoveRange(relacoes);
+
         _db.Alunos.Remove(aluno);
+
         await _db.SaveChangesAsync();
+
         return NoContent();
     }
 }
