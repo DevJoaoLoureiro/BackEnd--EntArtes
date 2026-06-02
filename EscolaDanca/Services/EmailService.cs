@@ -32,11 +32,11 @@ public class EmailService : IEmailService
 
         using var client = new SmtpClient();
 
-        await client.ConnectAsync(
-            smtpHost,
-            smtpPort,
-            SecureSocketOptions.StartTls
-        );
+        Console.WriteLine($"SMTP HOST USADO = {smtpHost}");
+        Console.WriteLine($"SMTP PORT USADO = {smtpPort}");
+        Console.WriteLine($"SMTP USER USADO = {smtpUser}");
+
+        await client.ConnectAsync(smtpHost, smtpPort, SecureSocketOptions.StartTls);
 
         await client.AuthenticateAsync(smtpUser, smtpPass);
         await client.SendAsync(message);
