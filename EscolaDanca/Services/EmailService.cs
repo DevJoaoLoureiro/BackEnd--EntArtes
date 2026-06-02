@@ -1,5 +1,6 @@
-﻿using System.Net;
-using System.Net.Mail;
+﻿using MailKit.Net.Smtp;
+using MailKit.Security;
+using MimeKit;
 
 namespace EscolaDanca.Services;
 
@@ -20,13 +21,17 @@ public class EmailService : IEmailService
         var smtpPass = _cfg["Email:Password"];
         var from = _cfg["Email:From"];
 
-        using var client = new SmtpClient(smtpHost, smtpPort)
-        {
-            Credentials = new NetworkCredential(smtpUser, smtpPass),
-            EnableSsl = true
-        };
+        var message = new MimeMessage();
+        message.From.Add(MailboxAddress.Parse(from));
+        message.To.Add(MailboxAddress.Parse(to));
+        message.Subject = subject;
+        message.Body = new TextPart("html") { Text = body };
 
-        using var mail = new MailMessage(from!, to, subject, body);
-        await client.SendMailAsync(mail);
+        using var client = new SmtpClient();
+
+        await client.ConnectAsync(smtpHost, smtpPort, SecureSocketOptions.SslOnConnect);
+        await client.AuthenticateAsync(smtpUser, smtpPass);
+        await client.SendAsync(message);
+        await client.DisconnectAsync(true);
     }
 }
