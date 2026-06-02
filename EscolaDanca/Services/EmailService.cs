@@ -1,45 +1,59 @@
-﻿using MailKit.Net.Smtp;
-using MailKit.Security;
-using MimeKit;
+﻿using System.Text;
+using System.Text.Json;
 
 namespace EscolaDanca.Services;
 
 public class EmailService : IEmailService
 {
     private readonly IConfiguration _cfg;
+    private readonly HttpClient _http;
 
-    public EmailService(IConfiguration cfg)
+    public EmailService(IConfiguration cfg, HttpClient http)
     {
         _cfg = cfg;
+        _http = http;
     }
 
     public async Task SendAsync(string to, string subject, string body)
     {
-        var smtpHost = _cfg["Email:SmtpHost"];
-        var smtpPort = int.Parse(_cfg["Email:SmtpPort"]!);
-        var smtpUser = _cfg["Email:Username"];
-        var smtpPass = _cfg["Email:Password"];
-        var from = _cfg["Email:From"];
+        var apiKey = _cfg["Brevo:ApiKey"];
+        var fromEmail = _cfg["Brevo:FromEmail"];
+        var fromName = _cfg["Brevo:FromName"] ?? "Escola de Dança";
 
-        var message = new MimeMessage();
-        message.From.Add(MailboxAddress.Parse(from));
-        message.To.Add(MailboxAddress.Parse(to));
-        message.Subject = subject;
-        message.Body = new TextPart("html")
+        var payload = new
         {
-            Text = body
+            sender = new
+            {
+                email = fromEmail,
+                name = fromName
+            },
+            to = new[]
+            {
+                new { email = to }
+            },
+            subject,
+            htmlContent = body.Replace("\n", "<br>")
         };
 
-        using var client = new SmtpClient();
+        var request = new HttpRequestMessage(
+            HttpMethod.Post,
+            "https://api.brevo.com/v3/smtp/email"
+        );
 
-        Console.WriteLine($"SMTP HOST USADO = {smtpHost}");
-        Console.WriteLine($"SMTP PORT USADO = {smtpPort}");
-        Console.WriteLine($"SMTP USER USADO = {smtpUser}");
+        request.Headers.Add("api-key", apiKey);
 
-        await client.ConnectAsync(smtpHost, smtpPort, SecureSocketOptions.StartTls);
+        request.Content = new StringContent(
+            JsonSerializer.Serialize(payload),
+            Encoding.UTF8,
+            "application/json"
+        );
 
-        await client.AuthenticateAsync(smtpUser, smtpPass);
-        await client.SendAsync(message);
-        await client.DisconnectAsync(true);
+        var response = await _http.SendAsync(request);
+
+        if (!response.IsSuccessStatusCode)
+        {
+            var error = await response.Content.ReadAsStringAsync();
+            throw new Exception($"Brevo erro: {error}");
+        }
     }
 }

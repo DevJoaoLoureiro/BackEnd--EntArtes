@@ -53,6 +53,7 @@ builder.Services.AddSwaggerGen(c =>
 builder.Services.AddMemoryCache();
 
 builder.Services.AddScoped<IEmailService, EmailService>();
+builder.Services.AddHttpClient<IEmailService, EmailService>();
 builder.Services.AddScoped<PasswordService>();
 builder.Services.AddScoped<PagamentoService>();
 
