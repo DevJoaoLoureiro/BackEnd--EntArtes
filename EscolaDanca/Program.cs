@@ -60,14 +60,15 @@ builder.Services.AddScoped<PagamentoService>();
 builder.Services.AddDbContext<AppDbContext>(options =>
     options.UseSqlServer(
         builder.Configuration.GetConnectionString("DefaultConnection")));
-
 builder.Services.AddCors(options =>
 {
     options.AddPolicy("FrontEnd", policy =>
     {
         policy
             .WithOrigins(
-                "https://frontend-entartes.vercel.app"
+                "https://frontend-entartes.vercel.app",
+                "http://localhost:5500",
+                "http://127.0.0.1:5500"
             )
             .AllowAnyHeader()
             .AllowAnyMethod();

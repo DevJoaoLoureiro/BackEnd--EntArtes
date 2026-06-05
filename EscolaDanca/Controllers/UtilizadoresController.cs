@@ -84,7 +84,7 @@ public class UtilizadoresController : ControllerBase
         await _db.SaveChangesAsync();
 
         var frontendBase = _cfg["Frontend:BaseUrl"];
-        var link = $"{frontendBase}/registo.html?token={token}";
+        var link = $"{frontendBase}/registo?token={token}";
 
         var assunto = "Convite para criar conta - Escola de Dança";
         var body = $@"Olá,
